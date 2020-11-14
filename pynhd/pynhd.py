@@ -12,7 +12,7 @@ import pygeoutils as geoutils
 from pandas._libs.missing import NAType
 from pygeoogc import WFS, ArcGISRESTful, MatchCRS, RetrySession, ServiceURL
 from requests import Response
-from shapely.geometry import Polygon
+from shapely.geometry import MultiPolygon, Polygon
 
 from .exceptions import InvalidInputType, InvalidInputValue, MissingItems, ZeroMatched
 
@@ -57,14 +57,45 @@ class WaterData:
         resp = self.wfs.getfeature_bybox(bbox, box_crs, always_xy=True)
         return self.to_geodf(resp)
 
+    def bygeom(
+        self,
+        geometry: Union[Polygon, MultiPolygon],
+        geo_crs: str = DEF_CRS,
+        xy: bool = True,
+        predicate: str = "INTERSECTS",
+    ) -> gpd.GeoDataFrame:
+        """Get features within a geometry.
+
+        Parameters
+        ----------
+        geometry : shapely.geometry
+            The input geometry
+        geom_crs : str, optional
+            The CRS of the input geometry, default to epsg:4326.
+        xy : bool, optional
+            Whether axis order of the input geometry is xy or yx.
+        predicate : str, optional
+            The geometric prediacte to use for requesting the data, defaults to
+            INTERSECTS. Valid predicates are:
+            EQUALS, DISJOINT, INTERSECTS, TOUCHES, CROSSES, WITHIN, CONTAINS,
+            OVERLAPS, RELATE, DWITHIN, BEYOND
+
+        Returns
+        -------
+        geopandas.GeoDataFrame
+            The requested features in the given geometry.
+        """
+        resp = self.wfs.getfeature_bygeom(geometry, geo_crs, always_xy=not xy, predicate=predicate)
+        return self.to_geodf(resp)
+
     def byid(self, featurename: str, featureids: Union[List[str], str]) -> gpd.GeoDataFrame:
         """Get features based on IDs."""
         resp = self.wfs.getfeature_byid(featurename, featureids)
         return self.to_geodf(resp)
 
-    def byfilter(self, cql_filter: str) -> gpd.GeoDataFrame:
+    def byfilter(self, cql_filter: str, method: str = "GET") -> gpd.GeoDataFrame:
         """Get features based on a CQL filter."""
-        resp = self.wfs.getfeature_byfilter(cql_filter)
+        resp = self.wfs.getfeature_byfilter(cql_filter, method)
         return self.to_geodf(resp)
 
     def to_geodf(self, resp: Response) -> gpd.GeoDataFrame:
@@ -78,7 +109,7 @@ class WaterData:
         Returns
         -------
         geopandas.GeoDataFrame
-            The requested features in a dataframes.
+            The requested features in a GeoDataFrames.
         """
         return geoutils.json2geodf(resp.json(), ALT_CRS, self.crs)
 
